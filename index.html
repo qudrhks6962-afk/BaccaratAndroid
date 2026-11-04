@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0c121f">
+<title>Baccarat Monitor</title>
+<style>
+:root{color-scheme:dark;--bg:#0c121f;--panel:#151f30;--panel2:#1c2940;--muted:#9aa9bd;--line:#2a3951;--gold:#f4c66a;--red:#f06a73;--blue:#63a7ff;--green:#55d6a0}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#0c121f,#101b2c);color:#f4f7fb;font:15px system-ui,-apple-system,sans-serif;padding:16px 14px 28px}
+header{display:flex;align-items:center;justify-content:space-between;margin:4px 0 16px}h1{font-size:21px;margin:0;font-weight:800;letter-spacing:.2px}.tag{font-size:11px;color:var(--gold);border:1px solid #725d35;padding:5px 8px;border-radius:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:11px;box-shadow:0 8px 20px #0002}
+.metric small,.muted{color:var(--muted)}.metric strong{display:block;font-size:22px;margin-top:5px;font-weight:800}.metric .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.section-title{font-size:14px;font-weight:750;margin:0 0 12px}.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+button{border:0;border-radius:12px;padding:13px 8px;color:white;font-size:15px;font-weight:800;cursor:pointer}
+.p{background:#2466bb}.b{background:#c74352}.t{background:#278a69}.secondary{background:var(--panel2);border:1px solid var(--line);font-size:13px;padding:10px}
+.actions{display:flex;gap:8px;margin-top:10px}.actions button{flex:1}
+.road{display:grid;grid-auto-flow:column;grid-template-rows:repeat(6,27px);grid-auto-columns:27px;gap:3px;overflow-x:auto;padding:5px 0;min-height:182px}
+.dot{width:25px;height:25px;border:2px solid;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800}
+.dot.P{border-color:var(--blue);color:var(--blue)}.dot.B{border-color:var(--red);color:var(--red)}.dot.T{border-color:var(--green);color:var(--green)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:var(--panel2);border-radius:11px;padding:10px;text-align:center}.stat strong{display:block;font-size:19px}.stat small{color:var(--muted);font-size:11px}
+.bar{height:8px;border-radius:9px;background:#29364a;overflow:hidden;margin:8px 0}.bar span{display:block;height:100%;background:linear-gradient(90deg,#3987e4,#5ad7a5)}
+.row{display:flex;justify-content:space-between;gap:10px;margin:7px 0;font-size:13px}.row span:first-child{color:var(--muted)}
+.notice{font-size:12px;line-height:1.5;color:var(--muted)}.good{color:var(--green)}.warn{color:var(--gold)}.bad{color:var(--red)}
+.history{max-height:120px;overflow:auto;word-break:break-all;line-height:1.8;color:var(--muted);font-size:13px}
+footer{text-align:center;color:#73839a;font-size:11px;margin:18px 4px}
+</style>
+</head>
+<body>
+<header><h1>바카라 모니터</h1><span class="tag">SIMULATION · V1.0</span></header>
+<div class="grid">
+ <div class="card metric"><small>현재 모의 잔액</small><strong id="bankroll">₱80,000</strong><div class="sub" id="profit">시작 대비 ₱0</div></div>
+ <div class="card metric"><small>다음 모의 베팅</small><strong id="stake">₱500</strong><div class="sub" id="risk">손실 중단선 ₱70,000</div></div>
+</div>
+<div class="card">
+ <div class="section-title">게임 결과 입력</div>
+ <div class="buttons"><button class="p" onclick="add('P')">PLAYER</button><button class="b" onclick="add('B')">BANKER</button><button class="t" onclick="add('T')">TIE</button></div>
+ <div class="actions"><button class="secondary" onclick="undo()">한 단계 취소</button><button class="secondary" onclick="resetAll()">기록 초기화</button></div>
+</div>
+<div class="card">
+ <div class="section-title">빅로드 · 최근 기록</div><div id="road" class="road"></div>
+ <div class="row"><span>누적 입력</span><b id="total">0회</b></div>
+ <div class="history" id="history">아직 입력된 결과가 없습니다.</div>
+</div>
+<div class="card">
+ <div class="section-title">기초 통계</div>
+ <div class="stats">
+  <div class="stat"><strong id="pc" class="good">0</strong><small>PLAYER</small></div>
+  <div class="stat"><strong id="bc" class="bad">0</strong><small>BANKER</small></div>
+  <div class="stat"><strong id="tc">0</strong><small>TIE</small></div>
+ </div>
+ <div class="row"><span>PLAYER 비율 (타이 제외)</span><b id="pr">0%</b></div><div class="bar"><span id="pbar" style="width:0%"></span></div>
+ <div class="row"><span>BANKER 비율 (타이 제외)</span><b id="br">0%</b></div>
+ <div class="row"><span>최근 흐름</span><b id="streak">-</b></div>
+ <div class="row"><span>최근 결과 다음 전이 참고</span><b id="transition">데이터 부족</b></div>
+</div>
+<div class="card">
+ <div class="section-title">모의 자금관리</div>
+ <div class="row"><span>목표 잔액</span><b>₱100,000</b></div>
+ <div class="row"><span>중단 잔액</span><b>₱70,000</b></div>
+ <div class="row"><span>정산 방식</span><b>뱅커 적중 시 5% 차감</b></div>
+ <div class="row"><span>현재 상태</span><b id="status" class="good">진행 가능</b></div>
+ <p class="notice">이 앱은 과거 결과를 기록하고 모의 정산하는 도구입니다. 바카라 결과는 독립적인 무작위 사건에 가까우며, 패턴이나 통계가 다음 결과를 보장하지 않습니다. 실제 베팅을 유도하거나 자동으로 실행하지 않습니다.</p>
+</div>
+<footer>데이터는 이 휴대폰 앱 내부에 저장됩니다.</footer>
+<script>
+const KEY='baccarat_monitor_android_v1';
+let s={history:[],bankroll:80000,settlements:[]};
+function money(n){return '₱'+Math.round(n).toLocaleString('en-US')}
+function stake(){let b=s.bankroll;if(b<=70000)return 0;if(b>=80000)return 500;if(b>=78000)return 400;if(b>=75000)return 300;if(b>=72000)return 200;return 100}
+function save(){localStorage.setItem(KEY,JSON.stringify(s));render()}
+function add(v){
+ if(s.bankroll<=70000||s.bankroll>=100000){alert(s.bankroll<=70000?'손실 중단선에 도달했습니다.':'목표 잔액에 도달했습니다.');return}
+ const bet=stake();const pred=prediction();
+ s.history.push(v);
+ let delta=0;
+ if(v==='T')delta=0;else if(pred===v)delta=v==='B'?bet*.95:bet;else delta=-bet;
+ s.bankroll=Math.round((s.bankroll+delta)*100)/100;
+ s.settlements.push({pred,result:v,bet,delta});
+ save();
+}
+function prediction(){
+ const h=s.history.filter(x=>x!=='T');if(h.length<2)return 'P';
+ let last=h[h.length-1],same=0,opp=0;
+ for(let i=0;i<h.length-1;i++){if(h[i]===last){same++;if(h[i+1]===last)opp++}}
+ return same>=2&&opp/same>=.55?last:(last==='P'?'B':'P');
+}
+function undo(){if(!s.history.length)return;s.history.pop();s.settlements.pop();s.bankroll=80000+s.settlements.reduce((a,x)=>a+x.delta,0);save()}
+function resetAll(){if(!confirm('모든 기록과 모의 잔액을 초기화할까요?'))return;s={history:[],bankroll:80000,settlements:[]};save()}
+function render(){
+ let h=s.history, p=h.filter(x=>x==='P').length,b=h.filter(x=>x==='B').length,t=h.filter(x=>x==='T').length,n=p+b;
+ document.getElementById('bankroll').textContent=money(s.bankroll);
+ let diff=s.bankroll-80000;document.getElementById('profit').textContent='시작 대비 '+(diff>=0?'+':'')+money(diff);
+ document.getElementById('stake').textContent=money(stake());
+ document.getElementById('risk').textContent='손실 중단선 ₱70,000 · 목표 ₱100,000';
+ document.getElementById('total').textContent=h.length+'회';
+ ['pc','bc','tc'].forEach((id,i)=>document.getElementById(id).textContent=[p,b,t][i]);
+ let pp=n?p/n*100:0,bp=n?b/n*100:0;
+ document.getElementById('pr').textContent=pp.toFixed(1)+'%';document.getElementById('br').textContent=bp.toFixed(1)+'%';document.getElementById('pbar').style.width=pp+'%';
+ let non=h.filter(x=>x!=='T'),last=non[non.length-1],run=0;for(let i=non.length-1;i>=0&&non[i]===last;i--)run++;
+ document.getElementById('streak').textContent=last?last+' '+run+'연속':'-';
+ let trans='데이터 부족';if(last){let a=0,aa=0;for(let i=0;i<non.length-1;i++)if(non[i]===last){a++;if(non[i+1]===last)aa++}if(a)trans=last+' 유지 '+(aa/a*100).toFixed(0)+'%'}
+ document.getElementById('transition').textContent=trans;
+ let road=document.getElementById('road');road.innerHTML='';h.slice(-72).forEach(x=>{let d=document.createElement('div');d.className='dot '+x;d.textContent=x;road.appendChild(d)});
+ document.getElementById('history').textContent=h.length?h.join(' · '):'아직 입력된 결과가 없습니다.';
+ let status=document.getElementById('status');status.textContent=s.bankroll<=70000?'손실 한도 도달':s.bankroll>=100000?'목표 달성':'진행 가능';status.className=s.bankroll<=70000?'bad':s.bankroll>=100000?'good':'warn';
+}
+try{let old=localStorage.getItem(KEY);if(old)s=JSON.parse(old)}catch(e){}render();
+</script>
+</body></html>
